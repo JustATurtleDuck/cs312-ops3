@@ -1,0 +1,78 @@
+---
+- name: Obsidian Dynamics - Provision Minecraft Server
+  hosts: minecraft
+  become: yes # Run everything as root (sudo)
+  vars:
+    aws_region: "us-east-1"
+    aws_account_id: "851725450438"
+    s3_bucket: "obsidian-minecraft-backups-diazdiad"
+    image_tag: "v1.21.1" 
+    repo_uri: "{{ aws_account_id }}.dkr.ecr.{{ aws_region }}.amazonaws.com/obsidian-minecraft"
+
+  tasks:
+    - name: Wait for SSH to come up (if running immediately after Terraform)
+      wait_for_connection:
+        timeout: 60
+
+    - name: Install required packages (Docker & AWS CLI)
+      apt:
+        name:
+          - docker.io
+          - awscli
+          - python3-docker 
+        state: present
+        update_cache: yes
+
+    - name: Ensure Docker service is running and enabled on boot
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Create the persistent data directory on the host
+      file:
+        path: /home/ubuntu/obsidian-prod/data
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Restore world data from S3 (Requires LabInstanceProfile attached via Terraform)
+      command: >
+        aws s3 sync s3://{{ s3_bucket }}/server-backup /home/ubuntu/obsidian-prod/data
+      register: s3_restore
+      changed_when: "'download:' in s3_restore.stdout"
+
+    - name: Fix directory permissions for the restricted container user (UID 100)
+      file:
+        path: /home/ubuntu/obsidian-prod/data
+        owner: "100"
+        group: "101"
+        recurse: yes
+
+    - name: Authenticate Docker to AWS ECR
+      shell: |
+        aws ecr get-login-password --region {{ aws_region }} | docker login --username AWS --password-stdin {{ repo_uri }}
+      changed_when: false
+
+    - name: Ensure custom MOTD is set for the video rubric
+      ansible.builtin.lineinfile:
+        path: /home/ubuntu/obsidian-prod/data/server.properties
+        regexp: '^motd='
+        line: 'motd=Obsidian Dynamics - Diaz-Diaz'
+        create: yes
+        owner: "100"
+        group: "101"
+
+    - name: Pull image and start the Minecraft container
+      community.docker.docker_container:
+        name: obsidian-mc
+        image: "{{ repo_uri }}:{{ image_tag }}"
+        state: started
+        restart_policy: always
+        ports:
+          - "25565:25565"
+        volumes:
+          - "/home/ubuntu/obsidian-prod/data:/app/data"
+        env:
+          EULA: "TRUE"
