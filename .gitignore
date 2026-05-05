@@ -1,0 +1,8 @@
+# Ignore Terraform State and Lock files
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+
+# Ignore any AWS PEM keys I might have place here
+*.pem
