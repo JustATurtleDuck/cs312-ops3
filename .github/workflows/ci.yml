@@ -6,7 +6,7 @@ on:
     tags:
       - 'v*'
 
-jobs:
+jobs: # wish I had one!...:[
   build-and-publish:
     runs-on: ubuntu-latest
     steps:
@@ -15,7 +15,7 @@ jobs:
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
-        with:
+        with: # These secrets are set in GitHub repo settings
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
@@ -29,7 +29,7 @@ jobs:
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: obsidian-minecraft
-          IMAGE_TAG: ${{ github.ref_name }} # Automatically uses your git tag name
+          IMAGE_TAG: ${{ github.ref_name }} # Automatically uses git tag name
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
 
@@ -39,7 +39,7 @@ jobs:
           REPOSITORY: obsidian-minecraft
           IMAGE_TAG: ${{ github.ref_name }}
         run: |
-          # Boot the container in the background
+          # Boot the container in the background 
           docker run -d --name mc-test -e EULA=TRUE -p 25565:25565 $REGISTRY/$REPOSITORY:$IMAGE_TAG
           
           echo "Waiting for server to initialize (Polling for 2 minutes)..."
@@ -55,7 +55,7 @@ jobs:
           docker logs mc-test
           exit 1
 
-      - name: Push Image to ECR
+      - name: Push Image to ECR # should only happen if build and smoke test pass
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: obsidian-minecraft
